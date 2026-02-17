@@ -45,7 +45,6 @@ export default function LoginPage() {
    * Google OAuth sign-in (Supabase)
    * redirectTo must match what you added in Supabase Auth settings:
    *   http://localhost:3000/auth/callback
-   *   https://your-vercel-url.vercel.app/auth/callback
    */
   const signInWithGoogle = async () => {
     setError(null);

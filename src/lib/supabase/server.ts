@@ -16,6 +16,6 @@ export async function createClient() {
           // server components: ignore (cannot set cookies here)
         },
       },
-    }
+    },
   );
 }

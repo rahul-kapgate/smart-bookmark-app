@@ -40,7 +40,10 @@ export default function Bookmarks({ userId }: { userId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: "ok" | "err";
+    text: string;
+  } | null>(null);
 
   /**
    * Fetch bookmarks (RLS ensures we only see our own rows).
@@ -58,65 +61,66 @@ export default function Bookmarks({ userId }: { userId: string }) {
     setItems((data ?? []) as Bookmark[]);
   }, [supabase]);
 
-  
-useEffect(() => {
-  let channel: RealtimeChannel | null = null;
+  // Realtime subscription to sync changes from other tabs/devices.
+  useEffect(() => {
+    let channel: RealtimeChannel | null = null;
 
-  const setupRealtime = async () => {
-    // 1) Ensure we have a fresh session token
-    const { data } = await supabase.auth.getSession();
-    const accessToken = data.session?.access_token;
+    const setupRealtime = async () => {
+      // 1) Ensure we have a fresh session token
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data.session?.access_token;
 
-    // 2) IMPORTANT: set realtime auth before joining (RLS depends on this)
-    if (accessToken) {
-      supabase.realtime.setAuth(accessToken);
-    }
+      // 2) IMPORTANT: set realtime auth before joining (RLS depends on this)
+      if (accessToken) {
+        supabase.realtime.setAuth(accessToken);
+      }
 
-    // 3) Create channel (use a unique name)
-    channel = supabase
-      .channel(`bookmarks:${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "bookmarks",
-          filter: `user_id=eq.${userId}`,
-        },
-        async () => {
-          // Sync changes from OTHER tabs/devices
-          await fetchBookmarks();
+      // 3) Create channel (use a unique name)
+      channel = supabase
+        .channel(`bookmarks:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "bookmarks",
+            filter: `user_id=eq.${userId}`,
+          },
+          async () => {
+            // Sync changes from OTHER tabs/devices
+            await fetchBookmarks();
+          },
+        )
+        .subscribe((status) => {
+          console.log("[Realtime] status:", status);
+        });
+    };
+
+    setupRealtime();
+
+    // 4) Keep realtime auth in sync with token refresh / sign-in
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (session?.access_token) {
+          supabase.realtime.setAuth(session.access_token);
         }
-      )
-      .subscribe((status) => {
-        console.log("[Realtime] status:", status);
-      });
-  };
+      },
+    );
 
-  setupRealtime();
+    return () => {
+      authListener.subscription.unsubscribe();
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [supabase, userId, fetchBookmarks]);
 
-  // 4) Keep realtime auth in sync with token refresh / sign-in
-  const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-    if (session?.access_token) {
-      supabase.realtime.setAuth(session.access_token);
-    }
-  });
-
-  return () => {
-    authListener.subscription.unsubscribe();
-    if (channel) supabase.removeChannel(channel);
-  };
-}, [supabase, userId, fetchBookmarks]);
-
-useEffect(() => {
-  const onFocus = () => fetchBookmarks();
-  window.addEventListener("visibilitychange", () => {
-    if (!document.hidden) onFocus();
-  });
-  window.addEventListener("focus", onFocus);
-  return () => window.removeEventListener("focus", onFocus);
-}, [fetchBookmarks]);
-
+  useEffect(() => {
+    const onFocus = () => fetchBookmarks();
+    window.addEventListener("visibilitychange", () => {
+      if (!document.hidden) onFocus();
+    });
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [fetchBookmarks]);
 
   /**
    * Initial load + realtime subscription.
@@ -145,7 +149,7 @@ useEffect(() => {
         async () => {
           // For cross-tab sync: refetch when something changes
           await fetchBookmarks();
-        }
+        },
       )
       .subscribe();
 
@@ -250,7 +254,9 @@ useEffect(() => {
               ★
             </div>
             <div>
-              <p className="text-sm font-semibold leading-4">Smart Bookmark App</p>
+              <p className="text-sm font-semibold leading-4">
+                Smart Bookmark App
+              </p>
               <p className="text-xs text-slate-500">Private • Realtime </p>
             </div>
           </div>
@@ -287,7 +293,9 @@ useEffect(() => {
           <form onSubmit={addBookmark} className="mt-4 grid gap-3">
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="grid gap-1.5">
-                <label className="text-xs font-medium text-slate-600">Title</label>
+                <label className="text-xs font-medium text-slate-600">
+                  Title
+                </label>
                 <input
                   className="h-11 rounded-xl border border-slate-200 px-3 outline-none ring-indigo-200 focus:ring-4"
                   placeholder="e.g. Supabase Docs"
@@ -297,7 +305,9 @@ useEffect(() => {
               </div>
 
               <div className="grid gap-1.5">
-                <label className="text-xs font-medium text-slate-600">URL</label>
+                <label className="text-xs font-medium text-slate-600">
+                  URL
+                </label>
                 <input
                   className="h-11 rounded-xl border border-slate-200 px-3 outline-none ring-indigo-200 focus:ring-4"
                   placeholder="supabase.com/docs"
@@ -325,13 +335,18 @@ useEffect(() => {
           {loading ? (
             <div className="grid gap-3">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-20 rounded-2xl border border-slate-200 bg-white shadow-sm" />
+                <div
+                  key={i}
+                  className="h-20 rounded-2xl border border-slate-200 bg-white shadow-sm"
+                />
               ))}
             </div>
           ) : items.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
               <p className="text-base font-semibold">No bookmarks yet</p>
-              <p className="mt-1 text-sm text-slate-500">Add your first bookmark above.</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Add your first bookmark above.
+              </p>
             </div>
           ) : (
             <ul className="grid gap-3">
@@ -353,13 +368,17 @@ useEffect(() => {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={favicon} alt="" className="h-6 w-6" />
                           ) : (
-                            <span className="text-sm font-semibold text-slate-600">🔗</span>
+                            <span className="text-sm font-semibold text-slate-600">
+                              🔗
+                            </span>
                           )}
                         </div>
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold">{b.title}</p>
+                        <p className="truncate text-sm font-semibold">
+                          {b.title}
+                        </p>
                         <a
                           href={b.url}
                           target="_blank"
